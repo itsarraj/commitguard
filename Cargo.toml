@@ -1,0 +1,24 @@
+[package]
+name = "commitguard"
+version = "0.1.0"
+edition = "2021"
+description = "A native Conventional Commits linter + changelog generator — commitlint/semantic-release without the Node cold start"
+license = "MIT"
+authors = ["Animesh Raj <animesh080808@gmail.com>"]
+repository = "https://github.com/itsarraj/commitguard"
+readme = "README.md"
+keywords = ["conventional-commits", "commitlint", "changelog", "git", "pre-commit"]
+categories = ["command-line-utilities", "development-tools"]
+
+[lib]
+name = "commitguard"
+path = "src/lib.rs"
+
+[[bin]]
+name = "commitguard"
+path = "src/main.rs"
+
+[dependencies]
+regex = "1"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
