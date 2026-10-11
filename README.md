@@ -5,6 +5,12 @@ A native Conventional Commits linter + changelog generator.
 their Node cold-start cost is a small, constant tax paid on literally
 every single commit. This is a static binary — same job, no `npm install`.
 
+## Installation
+
+```sh
+cargo install --path .
+```
+
 ## Usage
 
 ```bash
