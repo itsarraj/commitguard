@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 use commitguard::{changelog, gitlog, hook, lint, parse};
@@ -37,11 +37,16 @@ enum Command {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    
+    // Attempt to load from the current directory, which works if commitguard
+    // is run from the repo root (the most common case for git hooks and CLI usage).
+    let config = commitguard::config::Config::load(Path::new("."));
+
     match cli.command {
         Command::Lint { message_file } => {
             let content = fs::read_to_string(&message_file)
                 .map_err(|e| anyhow::anyhow!("reading {}: {e}", message_file.display()))?;
-            let issues = lint::lint(&content);
+            let issues = lint::lint(&content, &config);
             if issues.is_empty() {
                 Ok(())
             } else {

@@ -17,7 +17,7 @@ pub struct LintIssue {
 /// checks below all assume a successful parse, so there's nothing more
 /// useful to say). Otherwise runs every rule against the parsed result —
 /// a message can fail more than one rule at once.
-pub fn lint(message: &str) -> Vec<LintIssue> {
+pub fn lint(message: &str, config: &crate::config::Config) -> Vec<LintIssue> {
     let commit = match parse::parse(message) {
         Ok(c) => c,
         Err(reason) => {
@@ -29,21 +29,23 @@ pub fn lint(message: &str) -> Vec<LintIssue> {
     };
 
     let mut issues = Vec::new();
-    check_type(&commit, &mut issues);
+    check_type(&commit, &mut issues, config);
     check_description_case(&commit, &mut issues);
     check_description_no_trailing_period(&commit, &mut issues);
-    check_subject_length(message, &mut issues);
+    check_subject_length(message, &mut issues, config);
     issues
 }
 
-fn check_type(commit: &ConventionalCommit, issues: &mut Vec<LintIssue>) {
-    if !ALLOWED_TYPES.contains(&commit.commit_type.as_str()) {
+fn check_type(commit: &ConventionalCommit, issues: &mut Vec<LintIssue>, config: &crate::config::Config) {
+    let allowed: Vec<&str> = config.allowed_types.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect()).unwrap_or_else(|| ALLOWED_TYPES.to_vec());
+    
+    if !allowed.contains(&commit.commit_type.as_str()) {
         issues.push(LintIssue {
             rule: "type-enum",
             message: format!(
                 "'{}' is not an allowed type — expected one of: {}",
                 commit.commit_type,
-                ALLOWED_TYPES.join(", ")
+                allowed.join(", ")
             ),
         });
     }
@@ -69,13 +71,14 @@ fn check_description_no_trailing_period(commit: &ConventionalCommit, issues: &mu
     }
 }
 
-fn check_subject_length(message: &str, issues: &mut Vec<LintIssue>) {
+fn check_subject_length(message: &str, issues: &mut Vec<LintIssue>, config: &crate::config::Config) {
     let subject = message.lines().next().unwrap_or("");
-    if subject.chars().count() > MAX_SUBJECT_LEN {
+    let max_len = config.max_subject_len.unwrap_or(MAX_SUBJECT_LEN);
+    if subject.chars().count() > max_len {
         issues.push(LintIssue {
             rule: "subject-max-length",
             message: format!(
-                "subject line is {} characters, max is {MAX_SUBJECT_LEN}",
+                "subject line is {} characters, max is {max_len}",
                 subject.chars().count()
             ),
         });
@@ -88,44 +91,44 @@ mod tests {
 
     #[test]
     fn clean_commit_has_no_issues() {
-        assert!(lint("fix: correct pagination off-by-one").is_empty());
+        assert!(lint("fix: correct pagination off-by-one", &crate::config::Config::default()).is_empty());
     }
 
     #[test]
     fn unparseable_subject_yields_exactly_one_format_issue() {
-        let issues = lint("fixed a thing");
+        let issues = lint("fixed a thing", &crate::config::Config::default());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].rule, "format");
     }
 
     #[test]
     fn unknown_type_is_flagged() {
-        let issues = lint("feet: typo in the type itself");
+        let issues = lint("feet: typo in the type itself", &crate::config::Config::default());
         assert!(issues.iter().any(|i| i.rule == "type-enum"));
     }
 
     #[test]
     fn uppercase_description_is_flagged() {
-        let issues = lint("fix: Correct the bug");
+        let issues = lint("fix: Correct the bug", &crate::config::Config::default());
         assert!(issues.iter().any(|i| i.rule == "description-case"));
     }
 
     #[test]
     fn trailing_period_is_flagged() {
-        let issues = lint("fix: correct the bug.");
+        let issues = lint("fix: correct the bug.", &crate::config::Config::default());
         assert!(issues.iter().any(|i| i.rule == "description-full-stop"));
     }
 
     #[test]
     fn overlong_subject_is_flagged() {
         let long_desc = "a".repeat(120);
-        let issues = lint(&format!("feat: {long_desc}"));
+        let issues = lint(&format!("feat: {long_desc}"), &crate::config::Config::default());
         assert!(issues.iter().any(|i| i.rule == "subject-max-length"));
     }
 
     #[test]
     fn a_message_can_fail_multiple_rules_at_once() {
-        let issues = lint("feet: Fix the thing.");
+        let issues = lint("feet: Fix the thing.", &crate::config::Config::default());
         let rules: Vec<&str> = issues.iter().map(|i| i.rule).collect();
         assert!(rules.contains(&"type-enum"));
         assert!(rules.contains(&"description-case"));
